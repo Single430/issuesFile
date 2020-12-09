@@ -2,6 +2,7 @@
 存放提问中临时图片，文件的项目
 
 # 代码片段
+* Bert 推理
 ```python
 
 trigger_model_path = "output-model-trigger"
@@ -55,3 +56,79 @@ def get_trigger_model_pred(inputs, words, return_pred=False):
 
     return event_type
 ```
+
+* TensorRT
+
+```python
+
+def squad_output(prefix, config, init_dict, network, input_tensor):
+    """
+    Create the squad output
+    """
+
+    idims = input_tensor.shape
+    assert len(idims) == 5
+    B, S, hidden_size, _, _ = idims
+
+    W_out = init_dict[prefix + SQD_W]
+    B_out = init_dict[prefix + SQD_B]
+
+    W = network.add_constant((1, hidden_size, 2), W_out)
+    dense = network.add_fully_connected(input_tensor, 2, W_out, B_out)
+    set_layer_name(dense, prefix, "dense")
+    return dense
+
+
+def multi_class_output(prefix, config, init_dict, network, input_tensor):
+    """
+    Create the squad output
+    """
+    labels_num = 12
+    idims = input_tensor.shape
+    assert len(idims) == 5
+    B, S, hidden_size, _, _ = idims
+
+    p_w = init_dict["bert_pooler_dense_kernel"]
+    p_b = init_dict["bert_pooler_dense_bias"]
+    W_out = init_dict["output_weights"]
+    B_out = init_dict["output_bias"]
+    # 这里其实可以直接取[CLS]的向量进行后续运算，但是没能实现相关功能，就计算了所有的
+    # reshape_ = network.add_slice(input_tensor, [0, 0, 0, 0, 0], [1, 1, 768, 1, 1], [1, 1, 1, 1, 1])
+    pool_output = network.add_fully_connected(input_tensor, hidden_size, p_w, p_b)
+    pool_data = pool_output.get_output(0)
+    tanh = network.add_activation(pool_data, trt.tensorrt.ActivationType.TANH)
+    tanh_output = tanh.get_output(0)
+
+    dense = network.add_fully_connected(tanh_output, labels_num, W_out, B_out)
+    set_layer_name(dense, prefix, "dense")
+    return dense
+
+
+def ner_output(prefix, config, init_dict, network, input_tensor):
+    """
+    Create the squad output
+    """
+    labels_num = 12
+    idims = input_tensor.shape
+    assert len(idims) == 5
+    B, S, hidden_size, _, _ = idims
+
+    W_out = init_dict["project_logits_w"]
+    B_out = init_dict["project_logits_b"]
+    # 转置在拉平
+    W_out = W_out.numpy().reshape((768, labels_num)).transpose((1, 0)).reshape((768*labels_num))
+    # add_fully_connected
+    # Y:=matmul(X,WT)+bias
+
+    # W = network.add_constant((1, hidden_size, labels_num), W_out)
+    pool_output = network.add_fully_connected(input_tensor, labels_num, W_out, B_out)
+    pool_data = pool_output.get_output(0)
+    dense = network.add_activation(pool_data, trt.tensorrt.ActivationType.TANH)
+    set_layer_name(dense, prefix, "dense")
+
+    # 9216 12 (-1, 512, 768, 1, 1) (-1, 512, 12, 1, 1)
+    # print(W_out.size, B_out.size, input_tensor.shape, dense.get_output(0).shape)
+    # exit()
+    return dense
+```
+
