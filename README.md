@@ -2,6 +2,11 @@
 存放提问中临时图片，文件的项目
 
 # 代码片段
+* MiniCPM 仿openai接口
+```python
+python minicpm_openai_api.py
+```
+
 * Bert 推理
 ```python
 
