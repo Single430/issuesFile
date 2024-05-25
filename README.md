@@ -2,9 +2,41 @@
 存放提问中临时图片，文件的项目
 
 # 代码片段
-* MiniCPM 仿openai接口
+* MiniCPM 仿openai接口(粗略改写，可用)
 ```python
 python minicpm_openai_api.py
+
+
+# 调用
+url = "http://127.0.0.1:9433/v1/chat/completions"  # 你的FastAPI服务器地址
+file = open("path.jpg", "rb").read()
+base64_data = base64.b64encode(file)
+base64_str = str(base64_data, 'utf-8')
+
+datas = {
+    "model": "暂时无用",
+    # "temperature": 10,
+    "messages": [
+        {
+            "role": "user",
+            "content": "问题一", 
+            "image": base64_str
+        },
+        # {
+        #     "role": "assistant",
+        #     "content": "回答的内容一",
+        # },
+        # {
+        #     "role": "user",
+        #     "content": "问题二",
+        #     # "image": base64_str
+        # },
+    ],
+    "max_tokens": 300,
+}
+
+response = requests.post(url, data=json.dumps(datas))
+print(response.json())
 ```
 
 * Bert 推理
